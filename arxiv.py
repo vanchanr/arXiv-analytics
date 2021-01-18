@@ -17,48 +17,60 @@ def createPaper(paper):
     for field in ['author', 'category']:
         if type(paper[field]) is not list:
             paper[field] = [paper[field]]
-    return {
-        'title': cleanSpaces(paper['title']),
-        'author': [author['name'] for author in paper['author']],
-        'abstract': cleanSpaces(paper['summary']),
-        'lastUpdated': paper['updated'],
-        'category': [category['@term'] for category in paper['category']],
-        'url': paper['id']
-    }
+    isCsPaper = False
+    allCategories = []
+    for category in paper['category']:
+        allCategories.append(category['@term'])
+        if category['@term'].startswith('cs.'):
+            isCsPaper = True
+    if isCsPaper:
+        return {
+            'title': cleanSpaces(paper['title']),
+            'author': [author['name'] for author in paper['author']],
+            'abstract': cleanSpaces(paper['summary']),
+            'lastUpdated': paper['updated'],
+            'category': allCategories,
+            'url': paper['id']
+        }
+    else:
+        return None
 
 if __name__ == "__main__":
     url = 'http://export.arxiv.org/api/query'
 
     keyword = input("Enter the keyword to search papers: ")
     queryParams = {
-        'search_query': 'all:{}'.format(keyword),
+        'search_query': f'all:"{keyword}"',
         'start': 0,
-        'max_results': 200
+        'max_results': 500
     }
 
     outLs = []
     batch = 1
-    while batch <= 10:
+    while batch <= 100:
         try:
             resp = requests.get(url, params=queryParams)
             resp = xmltodict.parse(resp.text)
             resp = resp['feed']
             if 'entry' in resp:
+                curBatch = []
                 for paper in resp['entry']:
                     paper = createPaper(paper)
-                    outLs.append(paper)
-                print("Batch-{}: processed {} papers".format(batch, len(resp['entry'])))
+                    if paper is not None:
+                        curBatch.append(paper)
+                outLs.extend(curBatch)
+                print(f"Batch-{batch}: Added {len(curBatch)} CS papers")
             else:
                 break
-        except:
-            print("Error while processing batch-{}".format(batch))
+        except Exception as ex:
+            print(f"Error while processing batch-{batch}: {ex}")
         batch += 1
-        queryParams['start'] += 200
+        queryParams['start'] += 500
         time.sleep(0.5)
-    print("Total processed papers:", len(outLs))
+    print(f"Total CS papers matching '{keyword}':", len(outLs))
     try:
-        with open('{}.json'.format(keyword), mode='w', encoding='utf-8') as jsonFile:
+        with open(f'{keyword}.json', mode='w', encoding='utf-8') as jsonFile:
             json.dump(outLs, jsonFile, indent=2, ensure_ascii=False)
             print("Successfully created the json dump file !")
-    except:
-        print("Error while creating json dump file")
+    except Exception as ex:
+        print(f"Error while creating json dump file: {ex}")
