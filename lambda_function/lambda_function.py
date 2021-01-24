@@ -1,13 +1,18 @@
 import xmltodict
 import requests
 import json
-import time
 import re
 import matplotlib.pyplot as plt
 from datetime import datetime
 import base64
 from io import BytesIO
 from urllib.parse import unquote
+import boto3
+import time
+
+PROCESSING = "processing"
+SUCCESS = "success"
+ERROR = "error"
 
 def cleanSpaces(s):
     s = s.replace('\n', ' ')
@@ -37,17 +42,24 @@ def createPaper(paper):
         return None
 
 def plotHelper(keyword, plotBy, countData):
-    fig = plt.figure()
-    fig.set_tight_layout(True)
-    plt.bar(countData.keys(), countData.values())
-    for key in countData:
-        plt.text(key, countData[key], str(countData[key]), va='bottom', ha='center')
-    plt.title(f'Number of {keyword} Papers by {plotBy}')
-    plt.xlabel(plotBy)
-    plt.ylabel('Count')
-    plt.xticks(rotation=45)
+    fig, ax = plt.subplots()
+    
+    keys = list(countData.keys())
+    keys = ['\n'.join(item.split(' ', 1)) for item in keys]
+    ypos = [i for i in range(len(keys))]
+    values = list(countData.values())
+    ax.barh(ypos, values, height=0.5)
+    ax.set_yticks(ypos)
+    ax.set_yticklabels(keys)
+    ax.invert_yaxis()
+    for i in ypos:
+        ax.text(values[i], i , str(values[i]), va='center', ha='left')
+    ax.set_title(f'Number of {keyword} Papers by {plotBy}')
+    ax.set_xlabel('Count')
+    ax.set_ylabel(plotBy)
 
     tmpFile = BytesIO()
+    fig.set_tight_layout(True)
     fig.savefig(tmpFile, format='png')
     return base64.b64encode(tmpFile.getvalue()).decode('utf-8')
 
@@ -79,57 +91,78 @@ def plotFieldWise(keyword, jsonDump, field):
         data = dict(sorted(data.items(), key=lambda x: x[1], reverse=True)[:10])
         return plotHelper(keyword, field, data)
 
+def setRequestStatusInS3(requestId, requestStatus):
+    client = boto3.client('s3')
+    response = client.put_object(
+        Body=requestStatus,
+        Bucket='arxiv-analytics',
+        Key='request_status/' + requestId
+    )
+    print(response)
+
 def lambda_handler(event, context):
-    keyword = event['pathParameters']['keyword']
-    keyword = unquote(keyword)
-    url = 'http://export.arxiv.org/api/query'
-    queryParams = {
-        'search_query': f'all:"{keyword}"',
-        'start': 0,
-        'max_results': 500
-    }
+    keyword = event['params']['path']['keyword']
+    request_id = event['context']['request-id']
     
-    outLs = []
-    batch = 1
-    while batch <= 100:
-        try:
-            resp = requests.get(url, params=queryParams)
-            resp = xmltodict.parse(resp.text)
-            resp = resp['feed']
-            if 'entry' in resp:
-                curBatch = []
-                for paper in resp['entry']:
-                    paper = createPaper(paper)
-                    if paper is not None:
-                        curBatch.append(paper)
-                outLs.extend(curBatch)
-                print(f"Batch-{batch}: Added {len(curBatch)} CS papers")
-            else:
-                break
-        except Exception as ex:
-            print(f"Error while processing batch-{batch}: {ex}")
-        batch += 1
-        queryParams['start'] += 500
-        time.sleep(0.5)
-    print(f"Total CS papers matching '{keyword}':", len(outLs))
-    # try:
-    #     with open(f'{keyword}.json', mode='w', encoding='utf-8') as jsonFile:
-    #         json.dump(outLs, jsonFile, indent=2, ensure_ascii=False)
-    #         print("Successfully created the json dump file !")
-    # except Exception as ex:
-    #     print(f"Error while creating json dump file: {ex}")
+    setRequestStatusInS3(request_id, PROCESSING)
+
+    time.sleep(20)
+
+    if (int(time.time()) % 2) == 0:
+        setRequestStatusInS3(request_id, SUCCESS)
+    else:
+        setRequestStatusInS3(request_id, ERROR)
+
+    # keyword = unquote(keyword)
+    # url = 'http://export.arxiv.org/api/query'
+    # queryParams = {
+    #     'search_query': f'all:"{keyword}"',
+    #     'start': 0,
+    #     'max_results': 500
+    # }
     
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Allow-Origin': 'http://arxiv-analytics.s3-website.ap-south-1.amazonaws.com',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
-        },
-        'body': json.dumps({
-            "yearPlot": plotYearWise(keyword, outLs),
-            "authorPlot": plotFieldWise(keyword, outLs, 'author'),
-            "categoryPlot": plotFieldWise(keyword, outLs, 'category'),
-            "allPapers": outLs
-        })
-    }
+    # outLs = []
+    # batch = 1
+    # while batch <= 100:
+    #     try:
+    #         resp = requests.get(url, params=queryParams)
+    #         resp = xmltodict.parse(resp.text)
+    #         resp = resp['feed']
+    #         if 'entry' in resp:
+    #             curBatch = []
+    #             for paper in resp['entry']:
+    #                 paper = createPaper(paper)
+    #                 if paper is not None:
+    #                     curBatch.append(paper)
+    #             outLs.extend(curBatch)
+    #             print(f"Batch-{batch}: Added {len(curBatch)} CS papers")
+    #         else:
+    #             break
+    #     except Exception as ex:
+    #         print(f"Error while processing batch-{batch}: {ex}")
+    #     batch += 1
+    #     queryParams['start'] += 500
+    # print(f"Total CS papers matching '{keyword}':", len(outLs))
+    # # try:
+    # #     with open(f'{keyword}.json', mode='w', encoding='utf-8') as jsonFile:
+    # #         json.dump(outLs, jsonFile, indent=2, ensure_ascii=False)
+    # #         print("Successfully created the json dump file !")
+    # # except Exception as ex:
+    # #     print(f"Error while creating json dump file: {ex}")
+    
+    # return {
+    #     'statusCode': 200,
+    #     'headers': {
+    #         'Access-Control-Allow-Headers': 'Content-Type',
+    #         'Access-Control-Allow-Origin': 'http://arxiv-analytics.s3-website.ap-south-1.amazonaws.com',
+    #         'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+    #     },
+    #     'body': json.dumps({
+    #         # "yearPlot": plotYearWise(keyword, outLs),
+    #         # "authorPlot": plotFieldWise(keyword, outLs, 'author'),
+    #         # "categoryPlot": plotFieldWise(keyword, outLs, 'category'),
+    #         # "papersDump": outLs,
+    #         #"requestId": event['requestId']
+    #         "message": "try1"
+    #     })
+    # }
