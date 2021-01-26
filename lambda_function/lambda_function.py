@@ -36,7 +36,7 @@ def createPaper(paper):
             'abstract': cleanSpaces(paper['summary']),
             'lastUpdated': paper['updated'],
             'category': allCategories,
-            'url': paper['id']
+            'url': paper['id'].replace('abs', 'pdf')
         }
     else:
         return None
@@ -125,7 +125,7 @@ def lambda_handler(event, context):
     # batch = 1
     # while batch <= 100:
     #     try:
-    #         resp = requests.get(url, params=queryParams)
+    #         resp = requests.get(url, params=queryParams) #sort by latest first
     #         resp = xmltodict.parse(resp.text)
     #         resp = resp['feed']
     #         if 'entry' in resp:
@@ -142,6 +142,7 @@ def lambda_handler(event, context):
     #         print(f"Error while processing batch-{batch}: {ex}")
     #     batch += 1
     #     queryParams['start'] += 500
+    #     time.sleep(0.1)
     # print(f"Total CS papers matching '{keyword}':", len(outLs))
     # # try:
     # #     with open(f'{keyword}.json', mode='w', encoding='utf-8') as jsonFile:
@@ -161,8 +162,7 @@ def lambda_handler(event, context):
     #         # "yearPlot": plotYearWise(keyword, outLs),
     #         # "authorPlot": plotFieldWise(keyword, outLs, 'author'),
     #         # "categoryPlot": plotFieldWise(keyword, outLs, 'category'),
-    #         # "papersDump": outLs,
-    #         #"requestId": event['requestId']
-    #         "message": "try1"
+    #         # "allPapers": outLs,
+    #         # "topKeywords": event['requestId']
     #     })
     # }
