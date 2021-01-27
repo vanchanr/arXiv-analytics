@@ -52,7 +52,7 @@ $(document).ready(function () {
     $(SUBMIT_BUTTON).click(function () {
         this.blur();
         
-        var inputVal = $(KEYWORD_INPUT).val();
+        var inputVal = $(KEYWORD_INPUT).val().trim();
         showProcessing();
         if (inputVal) {
             changeUserInputState(USER_INPUT_DISABLE);
@@ -79,23 +79,23 @@ function showAllElements() {
 }
 
 function showProcessing() {
-    $(REQUEST_STATUS_ICON).html('<i class="fas fa-circle-notch fa-spin"></i>')//.css("color", "#0d6efd");
+    $(REQUEST_STATUS_ICON).html('<i class="fas fa-circle-notch fa-spin"></i>')
     $(REQUEST_STATUS_ICON).show();
     $(REQUEST_STATUS_IFRAME).show();
 }
 
 function showSuccess() {
-    $(REQUEST_STATUS_ICON).html('<i class="fas fa-check"></i>')//.css("color", "green");
+    $(REQUEST_STATUS_ICON).html('<i class="fas fa-check"></i>')
 }
 
 function showError() {
-    $(REQUEST_STATUS_ICON).html('<i class="fas fa-times"></i>')//.css("color", "red");
+    $(REQUEST_STATUS_ICON).html('<i class="fas fa-times"></i>')
 }
 
 function showProcessingLog() {
     var showLogTimerId = setInterval(function() {
         $(REQUEST_STATUS_IFRAME).attr("src", "./text1.txt");
-    }, 5000);
+    }, 10000);
 
     var prevLastLine = "";
     var lastLineSameCount = 0;
@@ -123,7 +123,7 @@ function showProcessingLog() {
                 }     
             }
         }
-    }, 5000);
+    }, 10000);
 }
 
 function getResults(keyword) {
@@ -206,7 +206,7 @@ function fetchAndUpdateAllPapers(keyword) {
     fileLink = `${S3_WEBSITE_URL}/results/${keyword}/allPapers.json`;
     $.get(fileLink)
         .done(function(data) {
-            updateAllPapersArea(SUCCESS, data, fileLink);
+            updateAllPapersArea(SUCCESS, JSON.parse(data), fileLink);
         })
         .fail(function() {
             updateAllPapersArea(ERROR, "Error while fetching papers dump.. please retry again", null);
@@ -247,7 +247,7 @@ function getSinglePaperHtml(paperJson) {
 function fetchAndUpdateTopKeywords(keyword) {
     $.get(`${S3_WEBSITE_URL}/results/${keyword}/topKeywords.json`)
         .done(function(data) {
-            updateTopKeywordsArea(SUCCESS, data);
+            updateTopKeywordsArea(SUCCESS, JSON.parse(data));
         })
         .fail(function() {
             updateTopKeywordsArea(ERROR, "Error while fetching top keywords list.. please retry again");
@@ -276,9 +276,6 @@ function fetchAndUpdateAllPlots(keyword) {
     for (plotId of allPlots) {
         updatePlotArea(plotId, `./results/${keyword}/${plotId.substring(1)}.png`)
     }
-    // updatePlotArea(YEAR_PLOT, "./results/blockchain/yearPlot.png");
-    // updatePlotArea(AUTHOR_PLOT, "./results/blockchain/authorPlot.png");
-    // updatePlotArea(CATEGORY_PLOT, "./results/blockchain/categoryPlot.png");
 }
 
 function updatePlotArea(plotId, plotImgPath) {

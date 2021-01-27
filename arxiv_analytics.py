@@ -11,6 +11,10 @@ def plotHelper(plotBy, countData):
     plt.ylabel('Count')
     plt.xticks(rotation=30)
     plt.show()
+    # tmpFile = BytesIO()
+    # fig.set_tight_layout(True)
+    # fig.savefig(tmpFile, format='png')
+    # return base64.b64encode(tmpFile.getvalue()).decode('utf-8')
 
 def plotYearWise(jsonDump):
     yearCountData = {}
