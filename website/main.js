@@ -18,10 +18,8 @@ const YEAR_PLOT = "#yearPlot"
 const AUTHOR_PLOT = "#authorPlot"
 const CATEGORY_PLOT = "#categoryPlot"
 const TOP_KEYWORDS = "#topKeywords"
-
-//$(document).ajaxStop($.unblockUI);
+//==========================================================
 $(document).ready(function () {
-
     if (localStorage.getItem(DARK_THEME) === "true") {
         $("body").addClass("dark-theme");
         $(DARK_THEME).prop("checked", true);
@@ -51,65 +49,66 @@ $(document).ready(function () {
 
     $(SUBMIT_BUTTON).click(function () {
         this.blur();
-        
-        var inputVal = $(KEYWORD_INPUT).val().trim();
         showProcessing();
+        var inputVal = $(KEYWORD_INPUT).val().trim();
         if (inputVal) {
-            changeUserInputState(USER_INPUT_DISABLE);
             startRequest(inputVal);
         } else {
             $(REQUEST_STATUS_IFRAME).attr("src", "./empty_keyword_error.txt");
             showError();
         }
-        
-        // 
-        // setTimeout(function() {
-        //     $('#enterKeyword').prop('disabled', false);
-        //     $(SUBMIT_BUTTON).prop('disabled', false);
-        //     showAllElements();
-        //     showProcessingLog();
-        // }, 5000);
-        
     });
 });
-
-function showAllElements() {
-    $(REQUEST_STATUS_IFRAME).css("visibility", "visible");
-    // $(STATUS).css("visibility", "visible");
-}
-
+//==========================================================
 function showProcessing() {
     $(REQUEST_STATUS_ICON).html('<i class="fas fa-circle-notch fa-spin"></i>')
+    $(REQUEST_STATUS_IFRAME).attr("src", "./blank.txt");
     $(REQUEST_STATUS_ICON).show();
     $(REQUEST_STATUS_IFRAME).show();
+    changeUserInputState(USER_INPUT_DISABLE);
 }
 
 function showSuccess() {
-    $(REQUEST_STATUS_ICON).html('<i class="fas fa-check"></i>')
+    $(REQUEST_STATUS_ICON).html('<i class="fas fa-check"></i>');
+    changeUserInputState(USER_INPUT_ENABLE);
 }
 
 function showError() {
-    $(REQUEST_STATUS_ICON).html('<i class="fas fa-times"></i>')
+    $(REQUEST_STATUS_ICON).html('<i class="fas fa-times"></i>');
+    changeUserInputState(USER_INPUT_ENABLE);
 }
 
-function showProcessingLog() {
-    var showLogTimerId = setInterval(function() {
-        $(REQUEST_STATUS_IFRAME).attr("src", "./text1.txt");
-    }, 10000);
+function changeUserInputState(state) {
+    if (state === USER_INPUT_ENABLE) {
+        $(KEYWORD_INPUT).prop('disabled', false);
+        $(SUBMIT_BUTTON).prop('disabled', false);
+    } else {
+        $(KEYWORD_INPUT).prop('disabled', true);
+        $(SUBMIT_BUTTON).prop('disabled', true);
+    }
+}
+//==========================================================
+function showProcessingLog(keyword, requestId) {
+    showProcessing();
+
+    var showLogTimerId = setInterval(function () {
+        $(REQUEST_STATUS_IFRAME).attr("src", `./request_status/${requestId}.txt`);
+    }, 5000);
 
     var prevLastLine = "";
     var lastLineSameCount = 0;
-    var readLogTImerId = setInterval(function() {
+    var readLogTImerId = setInterval(function () {
         var preTag = $(REQUEST_STATUS_IFRAME).contents().find("pre");
         if (preTag && preTag.html()) {
             logs = preTag.html().split("&gt; ");
-            console.log(logs);
             if (logs && logs.length > 0) {
                 curLastLine = logs[logs.length - 1].trim();
 
                 if (curLastLine === SUCCESS) {
                     clearInterval(showLogTimerId);
                     clearInterval(readLogTImerId);
+                    var keywordCleaned = keyword.toLowerCase().split(" ").join("_");
+                    updateAllResults(keywordCleaned);
                     showSuccess();
                 } else if (curLastLine === ERROR || lastLineSameCount > 10) {
                     clearInterval(showLogTimerId);
@@ -120,102 +119,43 @@ function showProcessingLog() {
                 } else {
                     prevLastLine = curLastLine;
                     lastLineSameCount = 0;
-                }     
+                }
             }
         }
     }, 10000);
 }
-
-function getResults(keyword) {
-    //showProcessing();
-    //$.blockUI({ message: null });
-    requestId = null;
-    requestStatus = null;
+//==========================================================
+function makeNewRequest(keyword) {
     url = `${APIGATEWAY_URL}/keyword/${keyword}`;
     $.get(url)
         .done(function (data, textStatus, jqXHR) {
+            $(REQUEST_STATUS_IFRAME).attr("src", "./server_accept_success.txt");
             showSuccess();
-            console.log("Request SUCCESS for " + url);
-            console.log(data, textStatus);
             requestId = jqXHR.getResponseHeader("x-amzn-requestid");
-
-            // plots = ["yearPlot", "authorPlot", "categoryPlot"];
-            // for (plot of plots) {
-            //     $("#" + plot).attr("src", "data:image/png;base64," + responseBody[plot]);
-            // }
-            // $("#response").html(JSON.stringify(responseBody['papersDump'], null, 2));
-            $("#response").html(requestId);
+            setTimeout(function () {
+                showProcessingLog(keyword, requestId);
+            }, 5000);
         })
         .fail(function (jqXHR, textStatus, errorThrown) {
+            $(REQUEST_STATUS_IFRAME).attr("src", "./server_accept_error.txt");
             showError();
-            console.log("An ERROR occured for " + url, textStatus, errorThrown);
-            $("#response").html(textStatus + ". Please Retry Again..");
         });
-}
-
-// requestStatus=null;
-
-// function task(requestId, i) {
-//     setTimeout(function () {
-//         $.get(`${S3_WEBSITE_URL}/request_status/${requestId}`)
-//             .done(function (data, textStatus, jqXHR) {
-//                 requestStatus = data;
-//                 console.log(requestStatus);
-//                 $("#response").html(requestStatus);
-//             })
-//             .fail(function (jqXHR, textStatus, errorThrown) {
-//                 console.log(errorThrown);
-//                 $("#response").html(errorThrown);
-//             });
-//     }, 2000 * i);
-// }
-
-function changeUserInputState(state) {
-    if(state === USER_INPUT_ENABLE) {
-        $(KEYWORD_INPUT).prop('disabled', false);
-        $(SUBMIT_BUTTON).prop('disabled', false);
-    } else {
-        $(KEYWORD_INPUT).prop('disabled', true);
-        $(SUBMIT_BUTTON).prop('disabled', true);
-    }
-}
-//==========================================================
-function startRequest(keyword) {
-    //showProcessing();
-    var keywordCleaned = keyword.toLowerCase().split(" ").join("_");
-    var cached = canServeFromCache(keywordCleaned);
-    if (cached) {
-        updateAllResults(keywordCleaned);
-        $(REQUEST_STATUS_IFRAME).attr("src", "./cache_info.txt");
-        showSuccess();
-        changeUserInputState(USER_INPUT_ENABLE);
-    } else {
-        $(REQUEST_STATUS_IFRAME).attr("src", "./under_construction.txt");
-        showError();
-        changeUserInputState(USER_INPUT_ENABLE);
-    }
-}
-
-function updateAllResults(keyword) {
-    fetchAndUpdateTopKeywords(keyword);
-    fetchAndUpdateAllPlots(keyword);
-    fetchAndUpdateAllPapers(keyword);
 }
 //==========================================================
 function fetchAndUpdateAllPapers(keyword) {
     fileLink = `${S3_WEBSITE_URL}/results/${keyword}/allPapers.json`;
     $.get(fileLink)
-        .done(function(data) {
+        .done(function (data) {
             updateAllPapersArea(SUCCESS, JSON.parse(data), fileLink);
         })
-        .fail(function() {
+        .fail(function () {
             updateAllPapersArea(ERROR, "Error while fetching papers dump.. please retry again", null);
         });
 }
 
 function updateAllPapersArea(status, allPapersJson, fileLink) {
     var innerHtml = "";
-    if(status === SUCCESS) {
+    if (status === SUCCESS) {
         var papersCount = allPapersJson.length;
         innerHtml += `<div class="text-center"><h5>All Papers (count: ${papersCount}) <a href="${fileLink}">file</a></h5></div>
                     <ol>`;
@@ -246,10 +186,10 @@ function getSinglePaperHtml(paperJson) {
 //==========================================================
 function fetchAndUpdateTopKeywords(keyword) {
     $.get(`${S3_WEBSITE_URL}/results/${keyword}/topKeywords.json`)
-        .done(function(data) {
+        .done(function (data) {
             updateTopKeywordsArea(SUCCESS, JSON.parse(data));
         })
-        .fail(function() {
+        .fail(function () {
             updateTopKeywordsArea(ERROR, "Error while fetching top keywords list.. please retry again");
         });
 }
@@ -258,8 +198,8 @@ function updateTopKeywordsArea(status, topKeywordsJson) {
     var innerHtml = `<h5>Top Keywords from Abstracts</h5>
                      <hr>
                      <p><b>`;
-    if(status === SUCCESS) {
-        var keywordArr = []; 
+    if (status === SUCCESS) {
+        var keywordArr = [];
         for (k in topKeywordsJson) {
             keywordArr.push(k);
         }
@@ -283,21 +223,37 @@ function updatePlotArea(plotId, plotImgPath) {
     $(plotId).show();
 }
 //==========================================================
+function updateAllResults(keyword) {
+    fetchAndUpdateTopKeywords(keyword);
+    fetchAndUpdateAllPlots(keyword);
+    fetchAndUpdateAllPapers(keyword);
+}
+//==========================================================
 function canServeFromCache(keyword) {
     var flag = false;
-    $.ajaxSetup({async:false});
+    $.ajaxSetup({ async: false });
     $.get(`${S3_WEBSITE_URL}/results/${keyword}/lastProcessed.txt`)
-        .done(function(data) {
+        .done(function (data) {
             var lastProcessedDate = new Date(data.trim());
             var date = new Date();
             date.setDate(date.getDate() - 2);
             flag = (lastProcessedDate >= date);
         })
-        .fail(function() {
+        .fail(function () {
             flag = false;
         });
-    $.ajaxSetup({async:true});
+    $.ajaxSetup({ async: true });
     return flag;
 }
 //==========================================================
-//$.get("http://arxiv-analytics.s3-website.ap-south-1.amazonaws.com/results/blockchain/lastProcessed.txt", function(data) {console.log(data)})
+function startRequest(keyword) {
+    var keywordCleaned = keyword.toLowerCase().split(" ").join("_");
+    if (canServeFromCache(keywordCleaned)) {
+        updateAllResults(keywordCleaned);
+        $(REQUEST_STATUS_IFRAME).attr("src", "./cache_success.txt");
+        showSuccess();
+    } else {
+        makeNewRequest(keyword);
+    }
+}
+//==========================================================

@@ -1,0 +1,42 @@
+hr {
+	border: none;
+	height: 1px;
+	color: black;
+	opacity: 1;
+}
+
+.custom-textarea {
+	max-height: 100vh;
+	overflow: auto;
+	font-family: monospace;
+}
+
+img {
+	max-width: 100%;
+	min-width: 100%;
+}
+
+.dark-theme {
+	background-color: #292929;
+	color: white;
+}
+
+.trigger-modal:hover {
+	cursor: pointer;
+}
+
+.hide-without-space {
+	display: none;
+}
+
+.fa-circle-notch {
+	color: #0d6efd;
+}
+
+.fa-check {
+	color: green;
+}
+
+.fa-times {
+	color: red;
+}
