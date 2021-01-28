@@ -17,10 +17,14 @@ def keywordCount(jsonDump):
                 map[word] = 1
     map = sorted(map.items(), key=lambda x: x[1], reverse=True)
     map = dict([kv for kv in map if kv[0] not in nltk_stop_words][:100])
-    
-    for key in map:
-        print(key, map[key])
 
+    with open('topKeywords.json', mode='w', encoding='utf-8') as jsonFile:
+        json.dump(map, jsonFile, indent=2, ensure_ascii=False)
+
+    # for key in map:
+    #     print(key, map[key])
+    #print("<b>", "</b> &mdash; <b>".join(list(map.keys())), "</b>")
+    
 
 if __name__ == "__main__":
     nltk_stop_words.extend(english_common_words)
